@@ -1,9 +1,8 @@
-# broken-contact-form-project
+# Serverless-contact-form
 Serverless contact form built with AWS (API Gateway, Lambda, DynamoDB, SNS) with real-world debugging and IAM troubleshooting
 
 
-
-**PROJECT OVERVIEW**
+**OVERVIEW**
 
 This project demonstrates the design, implementation, and troubleshooting of a serverless contact form application built using AWS services.
 
