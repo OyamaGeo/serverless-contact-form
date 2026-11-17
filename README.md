@@ -1,97 +1,118 @@
-# Serverless-contact-form
-Serverless contact form built with AWS (API Gateway, Lambda, DynamoDB, SNS) with real-world debugging and IAM troubleshooting
+# Serverless Contact Form – AWS
 
+A serverless contact form application built using Amazon API Gateway, AWS Lambda, Amazon DynamoDB and Amazon SNS.
 
-**OVERVIEW**
+## Project Overview
 
-This project demonstrates the design, implementation, and troubleshooting of a serverless contact form application built using AWS services.
+This project demonstrates the design and implementation of an event-driven, serverless contact form application using Amazon Web Services (AWS).
 
-The primary goal was not just to build a working system, but to simulate real-world failures and systematically debug them, mimicking the responsibilities of a Cloud Support Engineer.
+The application provides an API endpoint through which users can submit contact messages. AWS Lambda processes incoming requests, stores submitted information in DynamoDB and triggers email notifications through Amazon SNS.
 
-The architecture follows an event-driven serverless model using API Gateway, AWS Lambda, DynamoDB, and SNS.
+The project demonstrates practical experience with serverless architecture, AWS service integration, IAM permissions, application troubleshooting and cloud monitoring.
 
- **SYSTEM ARCHITECTURE**
+## System Architecture
 
-This application uses a fully serverless architecture:
+The application follows a serverless, event-driven architecture that uses managed AWS services to process and store contact form submissions without requiring dedicated server infrastructure.
 
-- A user submits a contact form via an API endpoint
-- The request is processed by a Lambda function
-- Data is stored in DynamoDB
-- A notification is sent via Amazon SNS
+### Architecture Diagram
 
----
+![Serverless Contact Form Architecture](architecture.png)
 
-**Architecture Diagram**
+### Application Workflow
 
-[![Architecture Diagram](./architecture.png)](./architecture.png)
+1. **User Submission:** A user submits a contact form request through the API endpoint.
+2. **API Gateway:** Amazon API Gateway receives the HTTP POST request through the `/submit` endpoint.
+3. **Request Processing:** AWS Lambda processes and validates the incoming request.
+4. **Data Persistence:** Lambda stores the contact submission in an Amazon DynamoDB table.
+5. **Notification Trigger:** Lambda publishes a notification message to an Amazon SNS topic.
+6. **Email Notification:** Amazon SNS delivers an email notification to confirmed subscribers.
 
----
+## AWS Services Used
 
-**DATA FLOW**
+| AWS Service | Purpose |
+|---|---|
+| Amazon API Gateway | Provides the HTTP API endpoint for contact submissions. |
+| AWS Lambda | Processes requests and coordinates application operations. |
+| Amazon DynamoDB | Stores submitted contact form information. |
+| Amazon SNS | Sends email notifications when submissions are received. |
+| AWS IAM | Controls permissions and secure access between AWS services. |
+| Amazon CloudWatch | Collects execution logs for monitoring and troubleshooting. |
 
-1. User submits the contact form via API Gateway (`/submit` endpoint)
-2. API Gateway invokes the AWS Lambda function
-3. Lambda validates and processes the request
-4. Lambda stores the data in DynamoDB
-5. Lambda publishes a message to SNS
-6. SNS sends an email notification to subscribed users
+## Implementation
 
----
+The application was implemented by integrating multiple AWS services into a complete serverless workflow.
 
-**AWS SERVICES USED**
+Key implementation activities included:
 
+- Configuring an API Gateway endpoint to receive HTTP POST requests.
+- Developing a Lambda function to process contact form submissions.
+- Integrating DynamoDB for persistent storage.
+- Configuring SNS to deliver email notifications.
+- Establishing IAM permissions for Lambda to interact with the required AWS services.
+- Using CloudWatch logs to monitor Lambda execution and investigate application errors.
+
+## Testing and Troubleshooting
+
+During implementation, several integration and configuration issues were identified and resolved.
+
+The troubleshooting process covered:
+
+| Issue Identified | Resolution |
+|---|---|
+| Missing `uuid` dependency | Corrected the Lambda deployment package to include the required dependency. |
+| DynamoDB write permission errors | Updated the Lambda execution role permissions. |
+| SNS publish permission errors | Corrected IAM permissions for SNS publishing. |
+| Unconfirmed SNS email subscription | Confirmed the email subscription. |
+| Lambda timeout configuration | Reviewed and adjusted the function timeout. |
+| API Gateway integration errors | Tested and corrected the API integration configuration. |
+
+CloudWatch execution logs were used to identify errors, investigate root causes and verify successful function execution.
+
+IAM permissions were reviewed and adjusted to follow the principle of least privilege.
+
+## Results and Validation
+
+The completed application successfully demonstrated the end-to-end contact submission workflow.
+
+Verified outcomes included:
+
+- API Gateway successfully returned HTTP `200 OK` for a successful submission.
+- Contact form submissions were stored in DynamoDB.
+- SNS successfully published notification messages.
+- Email notifications were delivered to confirmed subscribers.
+
+These results demonstrate successful integration between the API, compute, database and notification components.
+
+## Security and Reliability Considerations
+
+The project incorporates important AWS cloud engineering practices:
+
+- IAM-based access control between AWS services.
+- Permission management for Lambda execution roles.
+- CloudWatch logging for operational visibility.
+- Managed serverless services to reduce infrastructure administration.
+- Structured testing to identify and resolve integration failures.
+
+For production deployment, additional considerations include API authentication, request validation, input sanitisation, protection against abuse, sensitive-data handling and appropriate monitoring.
+
+## Technical Skills Demonstrated
+
+- AWS Serverless Architecture
 - Amazon API Gateway
 - AWS Lambda
 - Amazon DynamoDB
-- Amazon SNS (Simple Notification Service)
-- AWS Identity and Access Management (IAM)
-- Amazon CloudWatch (for logging and monitoring)
+- Amazon SNS
+- AWS IAM
+- Amazon CloudWatch
+- API Integration and Testing
+- Cloud Troubleshooting
+- IAM Permission Management
+- Root Cause Analysis
 
----
+## Key Takeaways
 
- **SIMULATED FAILURE SCENARIOS**
+This project strengthened my practical understanding of how independently managed AWS services work together to deliver a complete application.
 
-This project intentionally included real-world failure conditions to simulate production debugging:
+It also provided hands-on experience in diagnosing service integration failures, analysing execution logs, resolving IAM permission issues and validating an end-to-end serverless workflow.
 
-- Missing Lambda dependency (`uuid` module)
-- IAM permission errors (SNS publish & DynamoDB write)
-- Unconfirmed SNS email subscription
-- Lambda timeout configuration issues
-- API Gateway integration errors
-- CloudWatch log analysis for root cause identification
-
----
-
- **TROUBLESHOOTING PROCESS**
-
-The system was debugged using a structured approach:
-
-1. Tested API endpoint via API Gateway console
-2. Analyzed Lambda execution logs in CloudWatch
-3. Identified dependency and runtime errors
-4. Diagnosed IAM permission failures
-5. Updated IAM policies using least-privilege principles
-6. Confirmed SNS email subscription
-7. Adjusted Lambda timeout settings
-8. Retested the full workflow successfully
-
----
-
-**FINAL OUTCOME**
-
-- API Gateway returns 200 OK
-- Data is successfully stored in DynamoDB
-- SNS notifications are delivered via email
-- End-to-end workflow operates reliably
-
----
-
- **Key Learnings**
-
-- Understanding serverless architecture and service integration
-- Debugging Lambda functions using CloudWatch logs
-- Identifying and resolving IAM permission issues
-- Applying the principle of least privilege
-- Troubleshooting distributed systems effectively
-- Moving from “building” to engineering and debugging systems
-
+**Project Focus:** AWS Cloud Engineering | Serverless Computing | Application Integration | Troubleshooting
