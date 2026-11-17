@@ -1,0 +1,291 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Serverless contact form using API Gateway, Lambda, DynamoDB, and SNS'
+
+Parameters:
+  EmailAddress:
+    Type: String
+    Description: Email address that will receive contact form notifications
+
+Resources:
+
+  # DynamoDB table for storing submissions
+  ContactFormTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ContactFormSubmissions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  # SNS topic for email notifications
+  ContactFormTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: ContactFormNotifications
+      DisplayName: Contact Form Notifications
+
+  # Email subscription to SNS
+  EmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: !Ref EmailAddress
+      TopicArn: !Ref ContactFormTopic
+
+  # IAM role for Lambda
+  ContactFormRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+      Policies:
+        - PolicyName: ContactFormAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource: !GetAtt ContactFormTable.Arn
+
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref ContactFormTopic
+
+  # Lambda function
+  ContactFormFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ContactFormProcessor
+      Runtime: nodejs24.x
+      Handler: index.handler
+      Timeout: 10
+      MemorySize: 128
+      Role: !GetAtt ContactFormRole.Arn
+
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref ContactFormTopic
+          TABLE_NAME: !Ref ContactFormTable
+
+      Code:
+        ZipFile: |
+          const {
+            DynamoDBClient,
+            PutItemCommand
+          } = require("@aws-sdk/client-dynamodb");
+
+          const {
+            SNSClient,
+            PublishCommand
+          } = require("@aws-sdk/client-sns");
+
+          const { randomUUID } = require("node:crypto");
+
+          const dynamo = new DynamoDBClient({});
+          const sns = new SNSClient({});
+
+          const headers = {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Methods": "POST,OPTIONS"
+          };
+
+          const response = (statusCode, message) => ({
+            statusCode,
+            headers,
+            body: JSON.stringify({ message })
+          });
+
+          exports.handler = async (event) => {
+            try {
+              let bodyText = event.body || "{}";
+
+              if (event.isBase64Encoded) {
+                bodyText = Buffer
+                  .from(bodyText, "base64")
+                  .toString("utf8");
+              }
+
+              let body;
+
+              try {
+                body = JSON.parse(bodyText);
+              } catch {
+                return response(400, "Invalid JSON request body");
+              }
+
+              if (!body || typeof body !== "object" || Array.isArray(body)) {
+                return response(400, "Invalid request body");
+              }
+
+              const { name, email, message } = body;
+
+              if (
+                typeof name !== "string" ||
+                typeof email !== "string" ||
+                typeof message !== "string"
+              ) {
+                return response(400, "Name, email, and message are required");
+              }
+
+              const cleanName = name.trim();
+              const cleanEmail = email.trim();
+              const cleanMessage = message.trim();
+
+              if (!cleanName || !cleanEmail || !cleanMessage) {
+                return response(400, "Name, email, and message are required");
+              }
+
+              if (
+                cleanName.length > 100 ||
+                cleanEmail.length > 254 ||
+                cleanMessage.length > 5000
+              ) {
+                return response(400, "One or more fields exceed the allowed length");
+              }
+
+              if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+                return response(400, "Please provide a valid email address");
+              }
+
+              const id = randomUUID();
+              const timestamp = new Date().toISOString();
+
+              // Save submission to DynamoDB
+              await dynamo.send(new PutItemCommand({
+                TableName: process.env.TABLE_NAME,
+                Item: {
+                  id: { S: id },
+                  name: { S: cleanName },
+                  email: { S: cleanEmail },
+                  message: { S: cleanMessage },
+                  timestamp: { S: timestamp }
+                }
+              }));
+
+              // Send email notification through SNS
+              await sns.send(new PublishCommand({
+                TopicArn: process.env.SNS_TOPIC_ARN,
+                Subject: "New Contact Form Submission",
+                Message:
+                  `Name: ${cleanName}\n` +
+                  `Email: ${cleanEmail}\n` +
+                  `Message: ${cleanMessage}\n` +
+                  `Timestamp: ${timestamp}`
+              }));
+
+              return response(200, "Form submitted successfully");
+
+            } catch (error) {
+              console.error("Contact form processing failed:", error);
+              return response(500, "Internal server error");
+            }
+          };
+
+  # API Gateway REST API
+  ContactFormApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: ContactFormApi
+      Description: API for contact form submissions
+
+  # /submit resource
+  ContactFormResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ContactFormApi
+      ParentId: !GetAtt ContactFormApi.RootResourceId
+      PathPart: submit
+
+  # POST method
+  ContactFormMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ContactFormApi
+      ResourceId: !Ref ContactFormResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
+          - FunctionArn: !GetAtt ContactFormFunction.Arn
+
+  # OPTIONS method for CORS preflight requests
+  ContactFormOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ContactFormApi
+      ResourceId: !Ref ContactFormResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  # API Gateway deployment
+  ContactFormDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ContactFormMethod
+      - ContactFormOptions
+    Properties:
+      RestApiId: !Ref ContactFormApi
+      StageName: prod
+
+  # Allow API Gateway to invoke Lambda
+  ContactFormPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ContactFormFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ContactFormApi}/*/POST/submit
+
+Outputs:
+  ApiUrl:
+    Description: Contact form API endpoint
+    Value: !Sub https://${ContactFormApi}.execute-api.${AWS::Region}.amazonaws.com/prod/submit
+
+  LambdaFunction:
+    Description: Lambda function name
+    Value: !Ref ContactFormFunction
+
+  DynamoDBTable:
+    Description: DynamoDB table name
+    Value: !Ref ContactFormTable
+
+  SNSTopic:
+    Description: SNS topic ARN
+    Value: !Ref ContactFormTopic
